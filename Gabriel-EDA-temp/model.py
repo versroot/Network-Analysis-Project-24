@@ -5,6 +5,7 @@ import collections
 import numpy as np
 from collections import defaultdict
 import random
+import seaborn as sns
 
 
 class SIRModel:
@@ -112,8 +113,9 @@ class SIRModel:
                         if random.random() < self.rate_of_infection_spread: # Infection attempt
                             new_infections.append(neighbor)
                     if self.states[neighbor] == 4: # If neighbor is weak protected
-                        if random.random() < self.weak_protection_failure_chance: # Infection attempt
-                            new_infections.append(neighbor)
+                        if random.random() < self.weak_protection_failure_chance: # Protection break attempt
+                            if random.random() < self.rate_of_infection_spread: # Infection attempt
+                                new_infections.append(neighbor)
 
             # If node is strongly protected, try to spread the news of protection
             if (self.states[node] == 3) or (self.states[node] == 5):
@@ -375,6 +377,22 @@ def plot_sir_curves(history):
     plt.show()
 
 
+def plot_heatmap(final_states_one, final_states_two, final_states_three):
+    # ax = sns.heatmap(final_states_one, linewidth=0.5, vmin=0, vmax=6000, cmap='coolwarm')
+    # TODO: 3 subplots
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    sns.heatmap(final_states_one, linewidth=0.5, vmin=0, vmax=6000, cmap='coolwarm', ax=axs[0])
+    sns.heatmap(final_states_two, linewidth=0.5, vmin=0, vmax=6000, cmap='coolwarm', ax=axs[1])
+    sns.heatmap(final_states_three, linewidth=0.5, vmin=0, vmax=6000, cmap='coolwarm', ax=axs[2])
+    plt.show()
+    # do percentile within boxes of how much of the network is dead
+    # swap axis so that 0 0 is in 1 origin
+    # recheck code
+
+    #plt.title('Comparison of Protection Strategies')
+    #plt.show()
+
+
 def cluster_coefficient(G):
     cluster_coefficient = nx.clustering(G)
     cluster_coefficient = list(cluster_coefficient.values())
@@ -395,35 +413,115 @@ def main():
     # print(f"Modularity: {modularity:.3f}")
     # analyze_communities(communities)
     # visualize_communities(G, communities)
-    model = SIRModel(G, num_of_initial_infected=5, rate_of_infection_spread=0.2,
+    '''
+    model = SIRModel(G, num_of_initial_infected=10, rate_of_infection_spread=0.1,
                     num_of_initial_removed=0, removal_chance=0.1,
-                    num_of_initial_strong_protected=5, rate_of_strong_protection_spread=0.05,
-                    num_of_initial_weak_protected=5, rate_of_weak_protection_spread=0.2,
+                    num_of_initial_strong_protected=0, rate_of_strong_protection_spread=0,
+                    num_of_initial_weak_protected=10, rate_of_weak_protection_spread=0.1,
                     num_of_initial_weak_protected_but_infected=0,
                     num_of_initial_strong_protected_but_infected=0,
-                    num_of_initial_immune=0, recovery_chance=0.1, immunity_chance=0.1,
-                    weak_protection_failure_chance=0.1, protection_removal_chance=0.1)
+                    num_of_initial_immune=0, recovery_chance=0, immunity_chance=0,
+                    weak_protection_failure_chance=0, protection_removal_chance=0,
+                    protection_initialization_chance=0)
+    '''
 
-    # history = []
-    # for i in range(5):
-    #     history.append(model.run(max_steps=3650))
-    # average out all results in history
-    # history = np.mean(history, axis=0)
+    num_of_protection_failure_tests = 5
+    num_of_protection_spread_tests = 5
+    num_of_averaging_tests = 2
+    self_protection_starting_chance = 0
+    initial_infected_num = 10
+    initial_protected_num = 10
+    chance_of_being_removed = 0.2
+    protection_spread_rate = 0.05
+    steps = 200
+    final_states_one = np.zeros((num_of_protection_failure_tests, num_of_protection_spread_tests, num_of_averaging_tests))
+    final_states_two = np.zeros((num_of_protection_failure_tests, num_of_protection_spread_tests, num_of_averaging_tests))
+    final_states_three = np.zeros((num_of_protection_failure_tests, num_of_protection_spread_tests, num_of_averaging_tests))
+    averaged_final_states_one = np.zeros((num_of_protection_failure_tests, num_of_protection_spread_tests))
+    averaged_final_states_two = np.zeros((num_of_protection_failure_tests, num_of_protection_spread_tests))
+    averaged_final_states_three = np.zeros((num_of_protection_failure_tests, num_of_protection_spread_tests))
 
-    history = model.run(max_steps=100)
-    final_state = history[-1]
-    print("\nFinal Statistics:")
-    print(f"Susceptible: {final_state['S']}")
-    print(f"Infected: {final_state['I']}")
-    print(f"Removed: {final_state['R']}")
-    print(f"Strong Protected: {final_state['SP']}")
-    print(f"Weak Protected: {final_state['WP']}")
-    print(f"Strong Protected Infected: {final_state['SPI']}")
-    print(f"Weak Protected Infected: {final_state['WPI']}")
-    print(f"Immune: {final_state['IM']}")
+    protection_failure_chance = 0.9
+    infection_spread = 0.1
+    for i in range(num_of_protection_failure_tests):
+        protection_spread = 0
+        protection_failure_chance -= 0.05
+        for j in range(num_of_protection_spread_tests):
+            for k in range(num_of_averaging_tests):
+                model = SIRModel(G, num_of_initial_infected=initial_infected_num, rate_of_infection_spread=infection_spread,
+                                num_of_initial_removed=0, removal_chance=chance_of_being_removed,
+                                num_of_initial_strong_protected=0, rate_of_strong_protection_spread=0,
+                                num_of_initial_weak_protected=initial_protected_num, rate_of_weak_protection_spread=protection_spread,
+                                num_of_initial_weak_protected_but_infected=0,
+                                num_of_initial_strong_protected_but_infected=0,
+                                num_of_initial_immune=0, recovery_chance=0, immunity_chance=0,
+                                weak_protection_failure_chance=protection_failure_chance, protection_removal_chance=0,
+                                protection_initialization_chance=self_protection_starting_chance)
+                history = model.run(max_steps=steps)
+                final_states_one[i,j,k]=history[-1]['R']
+            protection_spread += protection_spread_rate
+
+    protection_failure_chance = 0.9
+    infection_spread = 0.2
+    for i in range(num_of_protection_failure_tests):
+        protection_spread = 0
+        protection_failure_chance -= 0.05
+        for j in range(num_of_protection_spread_tests):
+            for k in range(num_of_averaging_tests):
+                model = SIRModel(G, num_of_initial_infected=initial_infected_num, rate_of_infection_spread=infection_spread,
+                                num_of_initial_removed=0, removal_chance=chance_of_being_removed,
+                                num_of_initial_strong_protected=0, rate_of_strong_protection_spread=0,
+                                num_of_initial_weak_protected=initial_protected_num, rate_of_weak_protection_spread=protection_spread,
+                                num_of_initial_weak_protected_but_infected=0,
+                                num_of_initial_strong_protected_but_infected=0,
+                                num_of_initial_immune=0, recovery_chance=0, immunity_chance=0,
+                                weak_protection_failure_chance=protection_failure_chance, protection_removal_chance=0,
+                                protection_initialization_chance=self_protection_starting_chance)
+                history = model.run(max_steps=steps)
+                final_states_two[i,j,k]=history[-1]['R']
+            protection_spread += protection_spread_rate
+
+    protection_failure_chance = 0.9
+    infection_spread = 0.3
+    for i in range(num_of_protection_failure_tests):
+        protection_spread = 0
+        protection_failure_chance -= 0.05
+        for j in range(num_of_protection_spread_tests):
+            for k in range(num_of_averaging_tests):
+                model = SIRModel(G, num_of_initial_infected=initial_infected_num, rate_of_infection_spread=infection_spread,
+                                num_of_initial_removed=0, removal_chance=chance_of_being_removed,
+                                num_of_initial_strong_protected=0, rate_of_strong_protection_spread=0,
+                                num_of_initial_weak_protected=initial_protected_num, rate_of_weak_protection_spread=protection_spread,
+                                num_of_initial_weak_protected_but_infected=0,
+                                num_of_initial_strong_protected_but_infected=0,
+                                num_of_initial_immune=0, recovery_chance=0, immunity_chance=0,
+                                weak_protection_failure_chance=protection_failure_chance, protection_removal_chance=0,
+                                protection_initialization_chance=self_protection_starting_chance)
+                history = model.run(max_steps=steps)
+                final_states_three[i,j,k]=history[-1]['R']
+            protection_spread += protection_spread_rate
+
+    for i in range(num_of_protection_failure_tests):
+        for j in range(num_of_protection_spread_tests):
+            averaged_final_states_one[i,j] = np.mean(final_states_one[i,j])
+            averaged_final_states_two[i,j] = np.mean(final_states_two[i,j])
+            averaged_final_states_three[i,j] = np.mean(final_states_three[i,j])
+
+    plot_heatmap(averaged_final_states_one, averaged_final_states_two, averaged_final_states_three)
+    # history = model.run(max_steps=100)
+    # final_state = history[-1]
+    # print("\nFinal Statistics:")
+    # print(f"Susceptible: {final_state['S']}")
+    # print(f"Infected: {final_state['I']}")
+    # print(f"Removed: {final_state['R']}")
+    # print(f"Strong Protected: {final_state['SP']}")
+    # print(f"Weak Protected: {final_state['WP']}")
+    # print(f"Strong Protected Infected: {final_state['SPI']}")
+    # print(f"Weak Protected Infected: {final_state['WPI']}")
+    # print(f"Immune: {final_state['IM']}")
     # print(f"Total Infected: {final_state['R'] + final_state['I']}")
     # print(f"Infection Rate: {(final_state['R'] + final_state['I']) / len(G):.2%}")
-    plot_sir_curves(history)
+    # plot_sir_curves(history)
 
 
 if __name__ == '__main__':
@@ -458,4 +556,33 @@ Todo: Check for powerlaw
 Todo: Start making the powerpoint
 Todo: Visualize the spread after every K steps
 Todo: something for the fourth person
+
+
+Questions to Luca:
+    - We can see it is not power law but we can not explain it, help
+    - What should we present that would be relevant?
+
+Should have on slides
+    - Gif of spread
+    - Basic SIR presenetation
+    - Heatmap after SIR
+    - Communities in the network
+    - Power law not there, show
+    - Distributions of centralities
+    - Show whole network and largest component to argue why we went with largest component
+    -
+
+Todo: check for whole network
+
+Luca answers:
+    We can study time in the whole network
+    We can look at certain nodes or communities are less affected
+    Not powerlaw because how the data was collected, which gives a very specific perspective
+        When we say that networks follow a power law then we refer to a whole network not just
+        a connected group of people within
+
+    Degree distribution, centrality, clustering coefficient
+    Show the models, and results, so SIR and Heatmap perhaps with time as well
+        For the future, community structure, if different communities are inpacted in different ways
+    Be cohesive
 '''
